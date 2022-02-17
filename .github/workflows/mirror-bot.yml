@@ -1,0 +1,63 @@
+name: MirrorBot Environment
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore: 'README.md'
+  workflow_dispatch:
+   
+env:
+  # Change these values if you have forked it for your own works
+  GitHubMail: ${{ secrets.GH_MAIL }}
+  GitHubName: ${{ secrets.GH_NAME }}
+
+jobs:
+  debug:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: Set Git Configs & Secrets
+        run: |
+          git config --global user.email ${GitHubMail}
+          git config --global user.name ${GitHubName}
+          git config --global credential.helper store
+          echo "https://${GitHubName}:${{ secrets.GH_TOKEN }}@github.com" > ~/.git-credentials
+
+      # Cleanup The Actions Workspace Using Custom Composite Run Actions free up space
+     # - uses: rokibhasansagar/slimhub_actions@main
+
+      - name: Clone The Secret Mirror Repository
+        run: |
+          git clone https://${{ secrets.GH_TOKEN }}@github.com/${{ secrets.MIRROR_REPOSLUG }} source
+
+      - name: Installing nodejs, npm, typescript
+        run: |
+          cd source
+          echo $(pwd)
+          sudo apt -y install nodejs npm
+          sudo npm install -g typescript
+          sudo npm install --force
+          tsc
+
+      - name: running Bot
+        timeout-minutes: 340
+        continue-on-error: true
+        run: |
+          cd source
+          ./start.sh
+          npm start
+
+      - name: Loop Workflow
+        continue-on-error: true
+        run: |
+          # ${GITHUB_REPOSITORY} is the repo slug which runs this script
+          git clone https://${{ secrets.GH_TOKEN }}@github.com/${GITHUB_REPOSITORY} loop
+          cd loop || exit 1
+          echo $(( RANDOM - ( RANDOM % RANDOM ) )) > looper.txt
+          git add looper.txt
+          git commit --amend -m "Workflow : Loop at $(TZ='Asia/Kolkata' date +"%b %e, %l:%M %p")"
+          git push -qf https://${{ secrets.GH_TOKEN }}@github.com/${GITHUB_REPOSITORY} HEAD:main
+
